@@ -1,0 +1,11 @@
+services:
+  media-provider:
+    build: .
+    image: metadata-provider-template:local
+    ports:
+      - "32900:32900"
+    env_file:
+      - .env
+    environment:
+      PORT: "32900"
+    restart: unless-stopped

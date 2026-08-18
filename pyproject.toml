@@ -1,0 +1,8 @@
+[project]
+name = "metadata-provider-template"
+version = "1.0.0"
+description = "Template for building Plex Custom Metadata Providers (movie/tv/music)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
