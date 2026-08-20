@@ -1,6 +1,7 @@
 """Smoke tests for the app factory and provider-definition endpoint."""
 from app import create_app
 from app.helper.config import TestConfig
+from app.helper.constants import URL_PREFIX_MATCHES
 
 
 def _client():
@@ -21,7 +22,7 @@ def test_provider_definition_advertises_enabled_types_only():
     body = resp.get_json()
     types = {t["type"] for t in body["MediaProvider"]["Types"]}
     # movie(1) + show(2) have a default source; season(3)/episode(4) don't;
-    # music is off.
+    # artist is off.
     assert types == {1, 2}
     for t in body["MediaProvider"]["Types"]:
         assert t["Scheme"] == [{"scheme": TestConfig.PROVIDER_IDENTIFIER}]
@@ -29,21 +30,21 @@ def test_provider_definition_advertises_enabled_types_only():
 
 def test_season_and_episode_categories_have_no_default_source():
     client = _client()
-    resp = client.post("/library/metadata/matches", json={"type": 3, "title": "Season 1"})
+    resp = client.post(URL_PREFIX_MATCHES, json={"type": 3, "title": "Season 1"})
     assert resp.status_code == 400
-    resp = client.post("/library/metadata/matches", json={"type": 4, "title": "Pilot"})
+    resp = client.post(URL_PREFIX_MATCHES, json={"type": 4, "title": "Pilot"})
     assert resp.status_code == 400
 
 
 def test_unsupported_match_type_is_400():
     client = _client()
-    resp = client.post("/library/metadata/matches", json={"type": 99, "title": "whatever"})
+    resp = client.post(URL_PREFIX_MATCHES, json={"type": 99, "title": "whatever"})
     assert resp.status_code == 400
 
 
 def test_music_type_disabled_by_default_is_400():
     client = _client()
-    resp = client.post("/library/metadata/matches", json={"type": 8, "title": "Radiohead"})
+    resp = client.post(URL_PREFIX_MATCHES, json={"type": 8, "title": "Radiohead"})
     assert resp.status_code == 400
 
 

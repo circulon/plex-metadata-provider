@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from app.client.base import SourceMetadata
 from app.helper.config import TestConfig
+from app.helper.constants import URL_PREFIX_METADATA
 from app.helper.mapper import Mapper
-from app.schema.plex import METADATA_TYPE_EPISODE, METADATA_TYPE_MOVIE, METADATA_TYPE_SEASON, METADATA_TYPE_SHOW
+from app.schema.plex import MetadataType
 from app.service.match import MatchService, MatchThresholds
 from app.service.metadata import MetadataService, NotFoundError
 from app.service.search import SearchService
@@ -32,11 +33,11 @@ class FakeShowClient:
     name = "fake_show"
 
     def __init__(self):
-        self.show = SourceMetadata(upstream_id="show-1", title="Test Show", metadata_type=METADATA_TYPE_SHOW)
+        self.show = SourceMetadata(upstream_id="show-1", title="Test Show", metadata_type=MetadataType.SHOW)
 
         self.seasons = [
             SourceMetadata(
-                upstream_id=f"season-{n}", title=f"Season {n}", metadata_type=METADATA_TYPE_SEASON,
+                upstream_id=f"season-{n}", title=f"Season {n}", metadata_type=MetadataType.SEASON,
                 parent_upstream_id="show-1", parent_title="Test Show", index=n,
             )
             for n in (1, 2)
@@ -45,7 +46,7 @@ class FakeShowClient:
         self.episodes = {
             "season-1": [
                 SourceMetadata(
-                    upstream_id=f"s1e{n}", title=f"S1E{n}", metadata_type=METADATA_TYPE_EPISODE,
+                    upstream_id=f"s1e{n}", title=f"S1E{n}", metadata_type=MetadataType.EPISODE,
                     parent_upstream_id="season-1", parent_title="Season 1",
                     grandparent_upstream_id="show-1", grandparent_title="Test Show",
                     index=n, parent_index=1,
@@ -54,7 +55,7 @@ class FakeShowClient:
             ],
             "season-2": [
                 SourceMetadata(
-                    upstream_id=f"s2e{n}", title=f"S2E{n}", metadata_type=METADATA_TYPE_EPISODE,
+                    upstream_id=f"s2e{n}", title=f"S2E{n}", metadata_type=MetadataType.EPISODE,
                     parent_upstream_id="season-2", parent_title="Season 2",
                     grandparent_upstream_id="show-1", grandparent_title="Test Show",
                     index=n, parent_index=2,
@@ -99,22 +100,22 @@ def _services():
 # ----------------------------------------------------------------------
 def test_show_and_season_key_points_at_children():
     mapper = Mapper(scheme=SCHEME)
-    show = SourceMetadata(upstream_id="show-1", title="Test Show", metadata_type=METADATA_TYPE_SHOW)
+    show = SourceMetadata(upstream_id="show-1", title="Test Show", metadata_type=MetadataType.SHOW)
     mapped = mapper.map_full_entry(show)
-    assert mapped["key"] == "/library/metadata/show-1/children"
+    assert mapped["key"] == f"{URL_PREFIX_METADATA}/show-1/children"
 
 
 def test_movie_key_is_plain():
     mapper = Mapper(scheme=SCHEME)
-    movie = SourceMetadata(upstream_id="movie-1", title="Test Movie", metadata_type=METADATA_TYPE_MOVIE)
+    movie = SourceMetadata(upstream_id="movie-1", title="Test Movie", metadata_type=MetadataType.MOVIE)
     mapped = mapper.map_full_entry(movie)
-    assert mapped["key"] == "/library/metadata/movie-1"
+    assert mapped["key"] == f"{URL_PREFIX_METADATA}/movie-1"
 
 
 def test_episode_hierarchy_fields_are_populated():
     mapper = Mapper(scheme=SCHEME)
     episode = SourceMetadata(
-        upstream_id="s1e1", title="S1E1", metadata_type=METADATA_TYPE_EPISODE,
+        upstream_id="s1e1", title="S1E1", metadata_type=MetadataType.EPISODE,
         parent_upstream_id="season-1", parent_title="Season 1",
         grandparent_upstream_id="show-1", grandparent_title="Test Show",
         index=1, parent_index=1,
@@ -124,11 +125,11 @@ def test_episode_hierarchy_fields_are_populated():
     assert mapped["parentType"] == "season"
     assert mapped["parentGuid"] == f"{SCHEME}://season/season-1"
     # parentKey is plain (points at the season's own detail), unlike its "key".
-    assert mapped["parentKey"] == "/library/metadata/season-1"
+    assert mapped["parentKey"] == f"{URL_PREFIX_METADATA}/season-1"
 
     assert mapped["grandparentType"] == "show"
     assert mapped["grandparentGuid"] == f"{SCHEME}://show/show-1"
-    assert mapped["grandparentKey"] == "/library/metadata/show-1"
+    assert mapped["grandparentKey"] == f"{URL_PREFIX_METADATA}/show-1"
 
 
 # ----------------------------------------------------------------------
@@ -140,7 +141,7 @@ def test_get_children_of_show_returns_seasons():
     assert result["totalSize"] == 2
     assert [m["title"] for m in result["Metadata"]] == ["Season 1", "Season 2"]
     # Seasons have their own children, so their key also points at /children.
-    assert result["Metadata"][0]["key"] == "/library/metadata/season-1/children"
+    assert result["Metadata"][0]["key"] == f"{URL_PREFIX_METADATA}/season-1/children"
 
 
 def test_get_children_of_season_returns_episodes():
@@ -148,7 +149,7 @@ def test_get_children_of_season_returns_episodes():
     result = metadata_service.get_children("season-1")
     assert result["totalSize"] == 3
     assert [m["title"] for m in result["Metadata"]] == ["S1E1", "S1E2", "S1E3"]
-    assert result["Metadata"][0]["key"] == "/library/metadata/s1e1"
+    assert result["Metadata"][0]["key"] == f"{URL_PREFIX_METADATA}/s1e1"
 
 
 def test_get_children_paginates():
@@ -202,7 +203,7 @@ def test_include_children_omitted_for_movie_type():
             return []
 
         def get_entry(self, rating_key):
-            return SourceMetadata(upstream_id="movie-1", title="A Movie", metadata_type=METADATA_TYPE_MOVIE)
+            return SourceMetadata(upstream_id="movie-1", title="A Movie", metadata_type=MetadataType.MOVIE)
 
     search = SearchService(clients=[FakeMovieClient()])
     mapper = Mapper(scheme=SCHEME)

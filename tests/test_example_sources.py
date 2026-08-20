@@ -7,6 +7,7 @@ import respx
 
 from app import create_app
 from app.helper.config import TestConfig
+from app.helper.constants import URL_PREFIX_MATCHES, URL_PREFIX_METADATA
 
 
 def _client():
@@ -43,7 +44,7 @@ def test_movie_match_round_trip():
     with respx.mock(assert_all_called=True) as mock:
         mock.get("https://ghibliapi.vercel.app/films").mock(return_value=httpx.Response(200, json=[FILM]))
 
-        resp = _client().post("/library/metadata/matches", json={"type": 1, "title": "Spirited Away"})
+        resp = _client().post(URL_PREFIX_MATCHES, json={"type": 1, "title": "Spirited Away"})
 
     assert resp.status_code == 200
     metadata = resp.get_json()["MediaContainer"]["Metadata"]
@@ -60,7 +61,7 @@ def test_movie_full_metadata_round_trip():
             return_value=httpx.Response(200, json=FILM)
         )
 
-        resp = _client().get(f"/library/metadata/{FILM['id']}")
+        resp = _client().get(f"{URL_PREFIX_METADATA}/{FILM['id']}")
 
     assert resp.status_code == 200
     metadata = resp.get_json()["MediaContainer"]["Metadata"][0]
@@ -76,7 +77,7 @@ def test_show_match_round_trip():
             return_value=httpx.Response(200, json=SHOWS)
         )
 
-        resp = _client().post("/library/metadata/matches", json={"type": 2, "title": "archer"})
+        resp = _client().post(URL_PREFIX_MATCHES, json={"type": 2, "title": "archer"})
 
     assert resp.status_code == 200
     metadata = resp.get_json()["MediaContainer"]["Metadata"]
@@ -96,7 +97,7 @@ def test_movie_type_request_does_not_hit_show_source():
             return_value=httpx.Response(200, json=[])
         )
 
-        resp = _client().post("/library/metadata/matches", json={"type": 1, "title": "Spirited Away"})
+        resp = _client().post(URL_PREFIX_MATCHES, json={"type": 1, "title": "Spirited Away"})
 
     assert resp.status_code == 200
     assert movie_route.called
