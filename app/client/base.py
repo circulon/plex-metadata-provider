@@ -65,7 +65,7 @@ class SourceMetadata:
     title: str
 
     # "movie", "show", "season", "episode", "artist", "album", or "track" -
-    # see app/schema/plex.py's METADATA_TYPE_* constants.
+    # see app/schema/plex.MetadataType.
     metadata_type: str = "movie"
 
     # --- Required by Plex for movies ----------------------------------

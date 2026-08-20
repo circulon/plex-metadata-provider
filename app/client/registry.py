@@ -42,7 +42,7 @@ from typing import TYPE_CHECKING
 
 from app.client.base import SourceClient
 from app.client.caching import CachingSourceClient
-from app.helper.constants import SOURCE_TYPES
+from app.helper.constants import SOURCE_TYPES, SourceType
 from app.util.ttl_cache import TTLCache
 
 if TYPE_CHECKING:
@@ -62,11 +62,17 @@ class _DiscoveredSource:
     config_cls: type | None  # None if the source takes no configuration.
 
 
-def _discover_source_classes(category: str) -> dict[str, _DiscoveredSource]:
+def _discover_source_classes(category: SourceType) -> dict[str, _DiscoveredSource]:
     """Scans app/client/source/<category>/ for source modules, keyed by
     filename. Skips (with a warning) any module that doesn't follow the
     naming convention described in this module's docstring."""
-    package = importlib.import_module(f"app.client.source.{category}")
+    try:
+        package = importlib.import_module(f"app.client.source.{category}")
+    except ImportError:
+        logger.warning(
+            f"Code for ty[e '{category}' does not exist at app/client/source/{category} does not exist - skipping.",
+        )
+        return {}
 
     discovered: dict[str, _DiscoveredSource] = {}
     for module_info in pkgutil.iter_modules(package.__path__):
@@ -108,12 +114,12 @@ def _discover_source_classes(category: str) -> dict[str, _DiscoveredSource]:
 
 
 # Computed once at import time - these packages don't change at runtime.
-_SOURCE_CLASSES: dict[str, dict[str, _DiscoveredSource]] = {
+_SOURCE_CLASSES: dict[SourceType, dict[str, _DiscoveredSource]] = {
     category: _discover_source_classes(category) for category in SOURCE_TYPES
 }
 
 
-def _build_source(app: "Flask", category: str, name: str, source: _DiscoveredSource) -> SourceClient:
+def _build_source(app: "Flask", category: SourceType, name: str, source: _DiscoveredSource) -> SourceClient:
     """Constructs (and caches on app.extensions, for reuse across
     requests) one source client."""
     key = f"source_client:{category}:{name}"
@@ -129,15 +135,21 @@ def _build_source(app: "Flask", category: str, name: str, source: _DiscoveredSou
     return app.extensions[key]
 
 
-def build_enabled_clients(app: "Flask", category: str) -> list[SourceClient]:
+def build_enabled_clients(app: "Flask", category: SourceType) -> list[SourceClient]:
     """Builds the enabled source clients for one category, in the order
     given by ``Config.<CATEGORY>_SOURCES``, each wrapped in a
     CachingSourceClient sharing one search-cache and one entry-cache across
     every category. Returns ``[]`` immediately if
     ``ENABLE_<CATEGORY>_SOURCES`` is false."""
     cfg = app.config
-    enabled = cfg[f"ENABLE_{category.upper()}_SOURCES"]
-    order = cfg[f"{category.upper()}_SOURCES"]
+    settings = cfg["SOURCE_CATEGORIES"].get(category)
+    if settings is None:
+        raise RuntimeError(
+            f"No SOURCE_CATEGORIES entry for category {category!r} - check "
+            "Config.SOURCE_CATEGORIES in app/helper/config.py."
+        )
+    enabled = settings.enabled
+    order = settings.sources
     if not enabled:
         return []
 
@@ -169,7 +181,7 @@ def build_enabled_clients(app: "Flask", category: str) -> list[SourceClient]:
     return clients
 
 
-def build_all_enabled_clients(app: "Flask") -> dict[str, list[SourceClient]]:
+def build_all_enabled_clients(app: "Flask") -> dict[SourceType, list[SourceClient]]:
     """Builds every category's enabled client list at once, keyed by
     category name."""
     return {category: build_enabled_clients(app, category) for category in SOURCE_TYPES}

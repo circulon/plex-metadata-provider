@@ -4,59 +4,72 @@ routing table built on top of them.
 """
 from __future__ import annotations
 
+from enum import IntEnum, StrEnum
+
 # API path constants
-LIBRARY_METADATA = "/metadata"
-LIBRARY_MATCHES = "/matches"
+URL_PREFIX_METADATA = "/metadata"
+URL_PREFIX_MATCHES = "/matches"
 
-# --- Plex metadata type numbers (match-request "type" field) --------------
-MATCH_REQUEST_TYPE_MOVIE = 1
-MATCH_REQUEST_TYPE_SHOW = 2
-MATCH_REQUEST_TYPE_SEASON = 3
-MATCH_REQUEST_TYPE_EPISODE = 4
-# Not accepted by Plex's custom-provider API today - see
-# app/client/source/music/example_music.py. Kept for forward-looking
-# scaffolding; ENABLE_MUSIC_SOURCES defaults to False.
-MATCH_REQUEST_TYPE_ARTIST = 8
-MATCH_REQUEST_TYPE_ALBUM = 9
-MATCH_REQUEST_TYPE_TRACK = 10
 
-# --- Source categories -------------------------------------------------
-# One category per app/client/source/<category>/ package (see
-# app/client/registry.py), and one ENABLE_<CATEGORY>_SOURCES /
-# <CATEGORY>_SOURCES env-var pair per category (app/helper/config.py).
-# Each category maps to exactly one Plex metadata type, except MUSIC
-# (artist/album/track), which stays grouped since none of it is
-# Plex-supported yet.
-SOURCE_TYPE_MOVIE = "movie"
-SOURCE_TYPE_SHOW = "show"
-SOURCE_TYPE_SEASON = "season"
-SOURCE_TYPE_EPISODE = "episode"
-SOURCE_TYPE_MUSIC = "music"
+class MatchRequestType(IntEnum):
+    """Plex's metadata type numbers, as used in the match-request ``type``
+    field and the MediaProvider ``Types`` array."""
 
-SOURCE_TYPES: tuple[str, ...] = (
-    SOURCE_TYPE_MOVIE, SOURCE_TYPE_SHOW, SOURCE_TYPE_SEASON, SOURCE_TYPE_EPISODE, SOURCE_TYPE_MUSIC,
-)
+    MOVIE = 1
+    SHOW = 2
+    SEASON = 3
+    EPISODE = 4
+    # Currently not accepted by Plex's custom-provider API - see
+    # app/client/source/artist/example_artist.py. Kept for forward-looking
+    # scaffolding.
+    ARTIST = 8
+    ALBUM = 9
+    TRACK = 10
 
-# Which match-request type(s) each source category serves.
-SOURCE_CATEGORY_MATCH_TYPES: dict[str, set[int]] = {
-    SOURCE_TYPE_MOVIE: {MATCH_REQUEST_TYPE_MOVIE},
-    SOURCE_TYPE_SHOW: {MATCH_REQUEST_TYPE_SHOW},
-    SOURCE_TYPE_SEASON: {MATCH_REQUEST_TYPE_SEASON},
-    SOURCE_TYPE_EPISODE: {MATCH_REQUEST_TYPE_EPISODE},
-    SOURCE_TYPE_MUSIC: {MATCH_REQUEST_TYPE_ARTIST, MATCH_REQUEST_TYPE_ALBUM, MATCH_REQUEST_TYPE_TRACK},
+
+class SourceType(StrEnum):
+    """One member per app/client/source/<category>/ package (see
+    app/client/registry.py), and per ENABLE_<CATEGORY>_SOURCES /
+    <CATEGORY>_SOURCES env-var pair (app/helper/config.py). Each member's
+    value is also its package directory name. Each category maps to
+    exactly one MatchRequestType."""
+
+    MOVIE = "movie"
+    SHOW = "show"
+    SEASON = "season"
+    EPISODE = "episode"
+    ARTIST = "artist"
+    ALBUM = "album"
+    TRACK = "track"
+
+
+SOURCE_TYPES: tuple[SourceType, ...] = tuple(SourceType)
+
+# Which match-request type each source category serves.
+SOURCE_CATEGORY_MATCH_TYPES: dict[SourceType, MatchRequestType] = {
+    SourceType.MOVIE: MatchRequestType.MOVIE,
+    SourceType.SHOW: MatchRequestType.SHOW,
+    SourceType.SEASON: MatchRequestType.SEASON,
+    SourceType.EPISODE: MatchRequestType.EPISODE,
+    SourceType.ARTIST: MatchRequestType.ARTIST,
+    SourceType.ALBUM: MatchRequestType.ALBUM,
+    SourceType.TRACK: MatchRequestType.TRACK,
 }
 
 # The subset of match types Plex's custom-provider API currently accepts -
 # used to build the MediaProvider "Types" array (see app/routes.py).
-PLEX_SUPPORTED_MATCH_TYPES: set[int] = {
-    MATCH_REQUEST_TYPE_MOVIE, MATCH_REQUEST_TYPE_SHOW, MATCH_REQUEST_TYPE_SEASON, MATCH_REQUEST_TYPE_EPISODE,
+PLEX_SUPPORTED_MATCH_TYPES: set[MatchRequestType] = {
+    MatchRequestType.MOVIE,
+    MatchRequestType.SHOW,
+    MatchRequestType.SEASON,
+    MatchRequestType.EPISODE,
 }
 
 
-def match_type_to_source_category(match_type: int | None) -> str | None:
-    """e.g. ``MATCH_REQUEST_TYPE_SHOW -> "show"``. Returns None for an
-    unrecognized type - callers treat that as a 400."""
-    for category, types in SOURCE_CATEGORY_MATCH_TYPES.items():
-        if match_type in types:
+def match_type_to_source_category(match_type: int | None) -> SourceType | None:
+    """e.g. ``MatchRequestType.SHOW -> SourceType.SHOW``. Returns None for
+    an unrecognized type - callers treat that as a 400."""
+    for category, type_ in SOURCE_CATEGORY_MATCH_TYPES.items():
+        if match_type == type_:
             return category
     return None

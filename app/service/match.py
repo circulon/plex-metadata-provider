@@ -14,7 +14,7 @@ MANUAL_IGNORE_SCORE is returned, for a person to choose from.
 Routing to a source category
 ------------------------------
 ``match_request.type`` maps to a source category (movie/show/season/
-episode/music) via ``constants.match_type_to_source_category()``. A type
+episode/artist) via ``constants.match_type_to_source_category()``. A type
 that isn't recognized, or maps to a category with no enabled sources,
 raises ``UnsupportedMatchType`` (400) before any search runs.
 
@@ -40,9 +40,9 @@ from typing import Any
 
 from app.client.base import SourceMetadata, SourceUnavailableError
 from app.helper.config import Config
-from app.helper.constants import match_type_to_source_category
+from app.helper.constants import SOURCE_CATEGORY_MATCH_TYPES, SourceType, match_type_to_source_category
 from app.schema.match_request import MatchRequest
-from app.schema.plex import METADATA_TYPE_SEASON, METADATA_TYPE_SHOW
+from app.schema.plex import MetadataType
 from app.service.search import SearchService
 from app.helper.mapper import Mapper
 from app.util.scoring import rank_titles
@@ -60,7 +60,7 @@ class MatchThresholds:
 class MatchService:
     def __init__(
         self,
-        search_by_category: dict[str, SearchService],
+        search_by_category: dict[SourceType, SearchService],
         mapper: Mapper,
         thresholds: MatchThresholds | None = None,
         children_search: SearchService | None = None,
@@ -137,7 +137,7 @@ class MatchService:
         if not match_request.includeChildren or self.children_search is None:
             return
         metadata_type = entry.metadata_type if entry is not None else result.get("type")
-        if metadata_type not in (METADATA_TYPE_SHOW, METADATA_TYPE_SEASON):
+        if metadata_type not in (MetadataType.SHOW, MetadataType.SEASON):
             return
 
         rating_key = result.get("ratingKey")
@@ -158,9 +158,12 @@ class MatchService:
         for its source category, or raises UnsupportedMatchType."""
         category = match_type_to_source_category(match_type)
         if category is None:
+            supported = ", ".join(
+                f"{value} ({key})" for key, value in SOURCE_CATEGORY_MATCH_TYPES.items()
+            )
             raise UnsupportedMatchType(
                 f"Unsupported metadata type: {match_type!r}. "
-                "See app/helper/constants.SOURCE_CATEGORY_MATCH_TYPES for supported types."
+                f"supported types: {supported}"
             )
 
         search = self.search_by_category.get(category)

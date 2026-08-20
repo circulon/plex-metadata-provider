@@ -13,13 +13,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.helper.constants import LIBRARY_METADATA
+from app.helper.constants import URL_PREFIX_METADATA
 from app.client.base import ImageEntry, PersonEntry, SourceMetadata
 from app.schema.plex import (
     GRANDPARENT_TYPE_OF,
-    METADATA_TYPE_MOVIE,
     PARENT_TYPE_OF,
     TYPES_WITH_CHILDREN,
+    MetadataType,
     PlexChildren,
     PlexGuid,
     PlexImage,
@@ -124,7 +124,7 @@ class Mapper:
     # ------------------------------------------------------------------
     def _base_metadata(self, entry: SourceMetadata) -> PlexMetadata:
         rating_key = str(entry.upstream_id)
-        metadata_type = entry.metadata_type or METADATA_TYPE_MOVIE
+        metadata_type = entry.metadata_type or MetadataType.MOVIE
         metadata_key = self._own_key(rating_key, metadata_type)
         return PlexMetadata(
             ratingKey=rating_key,
@@ -152,7 +152,7 @@ class Mapper:
 
         if entry.parent_upstream_id:
             metadata.parentRatingKey = str(entry.parent_upstream_id)
-            metadata.parentKey = f"{LIBRARY_METADATA}/{metadata.parentRatingKey}"
+            metadata.parentKey = f"{URL_PREFIX_METADATA}/{metadata.parentRatingKey}"
             if parent_type:
                 metadata.parentType = parent_type
                 metadata.parentGuid = self.construct_guid(self.scheme, parent_type, metadata.parentRatingKey)
@@ -161,7 +161,7 @@ class Mapper:
 
         if entry.grandparent_upstream_id:
             metadata.grandparentRatingKey = str(entry.grandparent_upstream_id)
-            metadata.grandparentKey = f"{LIBRARY_METADATA}/{metadata.grandparentRatingKey}"
+            metadata.grandparentKey = f"{URL_PREFIX_METADATA}/{metadata.grandparentRatingKey}"
             if grandparent_type:
                 metadata.grandparentType = grandparent_type
                 metadata.grandparentGuid = self.construct_guid(
@@ -181,7 +181,7 @@ class Mapper:
         describes the parent." So a Show/Season's own ``key`` points at
         its /children listing rather than its plain metadata endpoint
         (confirmed by the docs' own Show and Season example responses)."""
-        base = f"{LIBRARY_METADATA}/{rating_key}"
+        base = f"{URL_PREFIX_METADATA}/{rating_key}"
         return f"{base}/children" if metadata_type in TYPES_WITH_CHILDREN else base
 
     @staticmethod

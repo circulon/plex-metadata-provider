@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.client.base import SourceMetadata
-from app.schema.plex import METADATA_TYPE_SEASON, METADATA_TYPE_SHOW
+from app.schema.plex import MetadataType
 from app.service.search import SearchService
 from app.helper.mapper import Mapper
 
@@ -45,7 +45,7 @@ class MetadataService:
         entry = self._fetch_entry(rating_key)
         metadata = self.mapper.map_full_entry(entry)
 
-        if include_children and entry.metadata_type in (METADATA_TYPE_SHOW, METADATA_TYPE_SEASON):
+        if include_children and entry.metadata_type in (MetadataType.SHOW, MetadataType.SEASON):
             children = self._fetch_children(rating_key, episode_order=episode_order) or []
             self.mapper.attach_children(metadata, children)
 
@@ -85,7 +85,7 @@ class MetadataService:
         grandchildren of its own. Mandatory paging (see app/routes.py)."""
         entry = self._fetch_entry(rating_key)
 
-        if entry.metadata_type == METADATA_TYPE_SEASON:
+        if entry.metadata_type == MetadataType.SEASON:
             return self._children_container([], offset=0, limit=limit)
 
         seasons = self._fetch_children(rating_key, episode_order=episode_order)

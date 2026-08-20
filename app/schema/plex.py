@@ -22,37 +22,42 @@ absent from the response.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, is_dataclass
+from enum import StrEnum
 from typing import Any
 
-# --- Plex's `type` field values (Metadata response, not the match-request
-# integer - see app/helper/constants.MATCH_REQUEST_TYPE_* for that). ---
-METADATA_TYPE_MOVIE = "movie"
-METADATA_TYPE_SHOW = "show"
-METADATA_TYPE_SEASON = "season"
-METADATA_TYPE_EPISODE = "episode"
-# Not part of Plex's documented custom-provider type set today - see
-# app/client/source/music/example_music.py.
-METADATA_TYPE_ARTIST = "artist"
-METADATA_TYPE_ALBUM = "album"
-METADATA_TYPE_TRACK = "track"
+
+class MetadataType(StrEnum):
+    """Plex's `type` field values (Metadata response, not the match-request
+    integer - see app/helper/constants.MatchRequestType for that)."""
+
+    MOVIE = "movie"
+    SHOW = "show"
+    SEASON = "season"
+    EPISODE = "episode"
+    # Not part of Plex's documented custom-provider type set today - see
+    # app/client/source/artist/example_artist.py.
+    ARTIST = "artist"
+    ALBUM = "album"
+    TRACK = "track"
+
 
 # Types which "contain child items" per
 # https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers - these
 # respond to /children (and /grandchildren) and, per the general API docs'
 # "one exception" note, use a /children-suffixed ``key`` in Metadata
 # responses rather than the plain metadata path (see Mapper._base_metadata).
-TYPES_WITH_CHILDREN: frozenset[str] = frozenset({METADATA_TYPE_SHOW, METADATA_TYPE_SEASON})
+TYPES_WITH_CHILDREN: frozenset[MetadataType] = frozenset({MetadataType.SHOW, MetadataType.SEASON})
 
 # Static parent/grandparent type inference for the movie/show/season/episode
 # hierarchy - used to populate the required parentType/grandparentType (and,
 # combined with a GUID, parentGuid/grandparentGuid) fields on season/episode
 # Metadata objects. See app/helper/mapper.py._apply_hierarchy.
-PARENT_TYPE_OF: dict[str, str] = {
-    METADATA_TYPE_SEASON: METADATA_TYPE_SHOW,
-    METADATA_TYPE_EPISODE: METADATA_TYPE_SEASON,
+PARENT_TYPE_OF: dict[MetadataType, MetadataType] = {
+    MetadataType.SEASON: MetadataType.SHOW,
+    MetadataType.EPISODE: MetadataType.SEASON,
 }
-GRANDPARENT_TYPE_OF: dict[str, str] = {
-    METADATA_TYPE_EPISODE: METADATA_TYPE_SHOW,
+GRANDPARENT_TYPE_OF: dict[MetadataType, MetadataType] = {
+    MetadataType.EPISODE: MetadataType.SHOW,
 }
 
 
@@ -126,7 +131,7 @@ class PlexMetadata:
     key: str
     guid: str
     title: str
-    type: str = METADATA_TYPE_MOVIE
+    type: MetadataType = MetadataType.MOVIE
 
     score: int | None = None
     originallyAvailableAt: str | None = None
