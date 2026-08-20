@@ -7,7 +7,7 @@ Only produces "show" entries (type=2). Season/episode are their own
 categories (app/client/source/season/, .../episode/), each with their own
 ENABLE_*/*_SOURCES config - both ship enabled with no default source. To
 add one: fetch the child list, set
-``metadata_type=METADATA_TYPE_SEASON``/``METADATA_TYPE_EPISODE`` (see
+``metadata_type=MetadataType.SEASON``/``MetadataType.EPISODE`` (see
 app/schema/plex.py), and populate ``parent_upstream_id``/``parent_title``/
 ``grandparent_*``/``index``/``parent_index`` the way this module populates
 the top-level fields on a show.
@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 
 from app.client.base import ImageEntry, SourceMetadata, RatingEntry, SourceUnavailableError
-from app.schema.plex import METADATA_TYPE_SHOW
+from app.schema.plex import MetadataType
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ class ExampleShow:
         entry = SourceMetadata(
             upstream_id=str(show["id"]),
             title=show.get("name") or "",
-            metadata_type=METADATA_TYPE_SHOW,
+            metadata_type=MetadataType.SHOW,
             originally_available_at=show.get("premiered"),
             year=int(show["premiered"][:4]) if show.get("premiered") else None,
             summary=_strip_html(show.get("summary")),

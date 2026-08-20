@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 
 from app.client.base import ImageEntry, PersonEntry, RatingEntry, SourceMetadata, SourceUnavailableError
-from app.schema.plex import METADATA_TYPE_MOVIE
+from app.schema.plex import MetadataType
 from app.util.scoring import title_match_score
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ class ExampleMovie:
         entry = SourceMetadata(
             upstream_id=str(film["id"]),
             title=film.get("title") or "",
-            metadata_type=METADATA_TYPE_MOVIE,
+            metadata_type=MetadataType.MOVIE,
             originally_available_at=f"{film['release_date']}-01-01" if film.get("release_date") else None,
             year=int(film["release_date"]) if str(film.get("release_date") or "").isdigit() else None,
             summary=(film.get("description") or "").strip() or None,

@@ -1,11 +1,11 @@
 """
-Example MUSIC source: the free, keyless MusicBrainz API
+Example Music Artist source: the free, keyless MusicBrainz API
 (https://musicbrainz.org/doc/MusicBrainz_API).
 
 Note: Plex's custom-provider API currently documents support for only
-movie/show/season/episode - music libraries aren't supported yet. This
+movie/show/season/episode - artist libraries aren't supported yet. This
 source is forward-looking scaffolding, off by default
-(Config.ENABLE_MUSIC_SOURCES).
+(Config.ENABLE_ARTIST_SOURCES).
 
 MusicBrainz requires a descriptive User-Agent (see
 ``ExampleMusicConfig.user_agent``) and asks for no more than ~1
@@ -20,31 +20,31 @@ from typing import Any
 import httpx
 
 from app.client.base import SourceMetadata, SourceUnavailableError
-from app.schema.plex import METADATA_TYPE_ARTIST
+from app.schema.plex import MetadataType
 
 logger = logging.getLogger(__name__)
 
 
-class ExampleMusicError(SourceUnavailableError):
+class ExampleArtistError(SourceUnavailableError):
     """Raised when MusicBrainz can't be reached or returns bad data."""
 
 
 @dataclass
-class ExampleMusicConfig:
+class ExampleArtistConfig:
     base_url: str = "https://musicbrainz.org/ws/2"
     timeout: float = 10.0
     user_agent: str = "MediaProviderTemplate/1.0 ( set a contact URL/email per MusicBrainz's API etiquette )"
 
 
-class ExampleMusic:
+class ExampleArtist:
     """SourceClient for MusicBrainz's /artist endpoints. Only produces
     "artist" entries - album/track are natural extensions (MusicBrainz's
     /release-group and /recording endpoints)."""
 
-    name = "example_music"
+    name = "example_artist"
 
-    def __init__(self, config: ExampleMusicConfig | None = None, client: httpx.Client | None = None):
-        self.config = config or ExampleMusicConfig()
+    def __init__(self, config: ExampleArtistConfig | None = None, client: httpx.Client | None = None):
+        self.config = config or ExampleArtistConfig()
         self.client = client or httpx.Client()
 
     # ------------------------------------------------------------------
@@ -70,7 +70,7 @@ class ExampleMusic:
         ratingKey character rules ([a-zA-Z0-9_-]) with no rewriting needed."""
         try:
             artist = self._get(f"/artist/{rating_key}", params={"fmt": "json", "inc": "tags"})
-        except ExampleMusicError:
+        except ExampleArtistError:
             return None
         if not isinstance(artist, dict) or "id" not in artist:
             return None
@@ -99,12 +99,12 @@ class ExampleMusic:
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             logger.error("MusicBrainz returned an error for %s: %s", url, exc, exc_info=True)
-            raise ExampleMusicError(f"MusicBrainz API error for {url}: {exc}") from exc
+            raise ExampleArtistError(f"MusicBrainz API error for {url}: {exc}") from exc
 
         try:
             return resp.json()
         except ValueError as exc:
-            raise ExampleMusicError(f"MusicBrainz returned non-JSON response for {url}") from exc
+            raise ExampleArtistError(f"MusicBrainz returned non-JSON response for {url}") from exc
 
     # ------------------------------------------------------------------
     # Translation to SourceMetadata
@@ -115,7 +115,7 @@ class ExampleMusic:
         entry = SourceMetadata(
             upstream_id=str(artist["id"]),
             title=artist.get("name") or "",
-            metadata_type=METADATA_TYPE_ARTIST,
+            metadata_type=MetadataType.ARTIST,
             originally_available_at=life_span.get("begin"),
             year=int(life_span["begin"][:4]) if life_span.get("begin", "")[:4].isdigit() else None,
             summary=artist.get("disambiguation") or None,

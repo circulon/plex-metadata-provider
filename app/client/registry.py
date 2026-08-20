@@ -1,6 +1,6 @@
 """
 Config-driven assembly of the enabled, ordered source clients used at
-request time, per category (movie/show/season/episode/music).
+request time, per category (movie/show/season/episode/artist/album/track).
 
 Adding a new source
 --------------------
@@ -11,7 +11,7 @@ Adding a new source
        attribute equal to its own module's filename ("tmdb_lite"). See
        app/client/source/movie/example_movie.py,
        app/client/source/show/example_show.py, and
-       app/client/source/music/example_music.py for examples.
+       app/client/source/artist/example_artist.py for examples.
      - optionally, a fully-defaulted ``TmdbLiteConfig`` dataclass. If it has
        a ``user_agent`` field, build_enabled_clients() fills it in from
        ``Config.PROVIDER_USER_AGENT``.
