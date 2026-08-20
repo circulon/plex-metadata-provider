@@ -6,19 +6,19 @@ https://github.com/plexinc/tmdb-example-provider, and
 https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers):
 
   GET  /                                        -> MediaProvider definition
-  GET  /library/metadata/<ratingKey>            -> Metadata feature
+  GET  /metadata/<ratingKey>            -> Metadata feature
                                                     (?includeChildren=1, ?episodeOrder=)
-  GET  /library/metadata/<ratingKey>/children    -> Direct children (Seasons of a
+  GET  /metadata/<ratingKey>/children    -> Direct children (Seasons of a
                                                     Show, Episodes of a Season).
                                                     TV Shows/Seasons only. Mandatory
                                                     paging - defaults to 20 items.
-  GET  /library/metadata/<ratingKey>/grandchildren -> Episodes of a Show, flattening
+  GET  /metadata/<ratingKey>/grandchildren -> Episodes of a Show, flattening
                                                     past Seasons. TV Shows only.
                                                     Mandatory paging - defaults to
                                                     20 items.
-  GET  /library/metadata/<ratingKey>/images     -> Image list for an item
-  GET  /library/metadata/<ratingKey>/extras     -> Extras list for an item
-  POST /library/metadata/matches                -> Match feature
+  GET  /metadata/<ratingKey>/images     -> Image list for an item
+  GET  /metadata/<ratingKey>/extras     -> Extras list for an item
+  POST /matches                -> Match feature
                                                     (includeChildren, episodeOrder)
   GET  /health                                  -> Simple liveness check
 """
@@ -29,11 +29,12 @@ import logging
 from flask import Blueprint, Flask, current_app, jsonify, request
 
 from app.helper.constants import (
-    LIBRARY_MATCHES,
-    LIBRARY_METADATA,
+    URL_PREFIX_MATCHES,
+    URL_PREFIX_METADATA,
     PLEX_SUPPORTED_MATCH_TYPES,
     SOURCE_CATEGORY_MATCH_TYPES,
     SOURCE_TYPES,
+    SourceType,
 )
 from app.client.registry import build_all_enabled_clients
 from app.service.search import SearchService
@@ -41,7 +42,7 @@ from app.helper.mapper import Mapper
 from app.service.match import MatchService, MatchThresholds, UnsupportedMatchType
 from app.service.metadata import MetadataService, NotFoundError
 
-bp = Blueprint("media_provider", __name__)
+bp = Blueprint("metadata_provider", __name__)
 logger = logging.getLogger(__name__)
 
 
@@ -55,7 +56,7 @@ def _get_mapper(app: Flask) -> Mapper:
     return app.extensions["mapper"]
 
 
-def _get_clients_by_category(app: Flask) -> dict[str, list]:
+def _get_clients_by_category(app: Flask) -> dict[SourceType, list]:
     """Builds (and caches on app.extensions) every category's enabled
     client list once."""
     if "clients_by_category" not in app.extensions:
@@ -63,7 +64,7 @@ def _get_clients_by_category(app: Flask) -> dict[str, list]:
     return app.extensions["clients_by_category"]
 
 
-def _get_search_by_category(app: Flask) -> dict[str, SearchService]:
+def _get_search_by_category(app: Flask) -> dict[SourceType, SearchService]:
     """One SearchService per source category, used by MatchService."""
     if "search_by_category" not in app.extensions:
         clients_by_category = _get_clients_by_category(app)
@@ -152,7 +153,7 @@ def _paging_params(default_size: int) -> tuple[int, int]:
 # Provider definition
 # ----------------------------------------------------------------------
 
-def _enabled_categories(app: Flask) -> set[str]:
+def _enabled_categories(app: Flask) -> set[SourceType]:
     clients_by_category = _get_clients_by_category(app)
     return {category for category, clients in clients_by_category.items() if clients}
 
@@ -160,7 +161,7 @@ def _enabled_categories(app: Flask) -> set[str]:
 def _build_provider_response() -> dict:
     """One ``Types`` entry per metadata type actually served - every type
     belonging to an enabled source category, intersected with
-    PLEX_SUPPORTED_MATCH_TYPES so an unsupported type (currently music) is
+    PLEX_SUPPORTED_MATCH_TYPES so an unsupported type (currently artist) is
     never advertised even if enabled locally."""
     cfg = current_app.config
     identifier = cfg["PROVIDER_IDENTIFIER"]
@@ -170,10 +171,10 @@ def _build_provider_response() -> dict:
     for category in SOURCE_TYPES:
         if category not in enabled_categories:
             continue
-        for match_type in sorted(SOURCE_CATEGORY_MATCH_TYPES[category]):
-            if match_type not in PLEX_SUPPORTED_MATCH_TYPES:
-                continue
-            types.append({"type": match_type, "Scheme": [{"scheme": identifier}]})
+        match_type = SOURCE_CATEGORY_MATCH_TYPES[category]
+        if match_type not in PLEX_SUPPORTED_MATCH_TYPES:
+            continue
+        types.append({"type": match_type, "Scheme": [{"scheme": identifier}]})
 
     return {
         "MediaProvider": {
@@ -182,8 +183,8 @@ def _build_provider_response() -> dict:
             "version": cfg["PROVIDER_VERSION"],
             "Types": types,
             "Feature": [
-                {"type": "metadata", "key": LIBRARY_METADATA},
-                {"type": "match", "key": LIBRARY_MATCHES},
+                {"type": "metadata", "key": URL_PREFIX_METADATA},
+                {"type": "match", "key": URL_PREFIX_MATCHES},
             ],
         }
     }
@@ -204,21 +205,21 @@ def health():
 # ----------------------------------------------------------------------
 # Metadata feature
 # ----------------------------------------------------------------------
-@bp.get(f"{LIBRARY_METADATA}/<rating_key>/images")
+@bp.get(f"{URL_PREFIX_METADATA}/<rating_key>/images")
 def get_images(rating_key: str):
     service = _get_metadata_service(current_app)
     result = service.get_images(rating_key)
     return jsonify(_envelope(result))
 
 
-@bp.get(f"{LIBRARY_METADATA}/<rating_key>/extras")
+@bp.get(f"{URL_PREFIX_METADATA}/<rating_key>/extras")
 def get_extras(rating_key: str):
     service = _get_metadata_service(current_app)
     result = service.get_extras(rating_key)
     return jsonify(_envelope(result))
 
 
-@bp.get(f"{LIBRARY_METADATA}/<rating_key>/children")
+@bp.get(f"{URL_PREFIX_METADATA}/<rating_key>/children")
 def get_children(rating_key: str):
     """Direct children (Seasons for a Show, Episodes for a Season).
     Mandatory paging - defaults to the first 20 items when no paging
@@ -230,7 +231,7 @@ def get_children(rating_key: str):
     return jsonify(_envelope(result))
 
 
-@bp.get(f"{LIBRARY_METADATA}/<rating_key>/grandchildren")
+@bp.get(f"{URL_PREFIX_METADATA}/<rating_key>/grandchildren")
 def get_grandchildren(rating_key: str):
     """Episodes for a Show, flattening past the Season level. Mandatory
     paging - defaults to the first 20 items when no paging headers/params
@@ -242,7 +243,7 @@ def get_grandchildren(rating_key: str):
     return jsonify(_envelope(result))
 
 
-@bp.get(f"{LIBRARY_METADATA}/<rating_key>")
+@bp.get(f"{URL_PREFIX_METADATA}/<rating_key>")
 def get_metadata(rating_key: str):
     service = _get_metadata_service(current_app)
     include_children = _bool_param("includeChildren")
@@ -254,7 +255,7 @@ def get_metadata(rating_key: str):
 # ----------------------------------------------------------------------
 # Match feature
 # ----------------------------------------------------------------------
-@bp.post(LIBRARY_MATCHES)
+@bp.post(URL_PREFIX_MATCHES)
 def post_match():
     body = request.get_json(silent=True) or {}
     service = _get_match_service(current_app)

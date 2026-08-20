@@ -1,8 +1,8 @@
 """
-Media Provider Template
-=========================
+Plex Metadata Provider Template
+===============================
 
-Flask skeleton implementing Plex's Custom Media Provider HTTP contract
+Flask skeleton implementing Plex's Custom Metadata Provider HTTP contract
 (https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers) for
 movies, TV shows, and music. See README.md for the architecture and how to
 add a metadata source.
@@ -11,11 +11,13 @@ import logging
 
 from flask import Flask
 
-from app.helper.config import Config
+from app.helper.config import Config, validate_source_categories
 
 
 def create_app(config_object: type[Config] = Config) -> Flask:
     """Application factory."""
+    validate_source_categories(config_object)
+
     app = Flask(__name__)
     app.config.from_object(config_object)
 

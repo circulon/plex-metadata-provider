@@ -1,21 +1,53 @@
 """
 Environment-driven configuration.
 
-Metadata sources are enabled per category (movie/show/season/episode/music
+Metadata sources are enabled per category (movie/show/season/episode/artist
 - see app/helper/constants.SOURCE_TYPES), via two env vars each:
 
   ENABLE_<CATEGORY>_SOURCES=true|false   # category on/off
   <CATEGORY>_SOURCES=first,second,...    # which sources, in priority order
 
+Each pair also gets a ``SourceCategorySettings`` entry in
+``Config.SOURCE_CATEGORIES``, keyed by category and built from direct
+attribute references (dot notation) rather than string-built dict keys.
+``validate_source_categories()`` (called from ``create_app()``) checks that
+every category in app/helper/constants.SOURCE_TYPES has an entry.
+
 See app/client/registry.py for how these are resolved to source classes.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import lru_cache
 import os
+from pathlib import Path
+import tomllib
 
 from dotenv import load_dotenv
 
+from app.helper.constants import SOURCE_TYPES, SourceType
+
 load_dotenv()
+
+
+@dataclass(frozen=True)
+class SourceCategorySettings:
+    """One category's on/off switch bundled with its ordered source list,
+    looked up together via a single attribute
+    (``cfg.SOURCE_CATEGORIES[category]``)."""
+
+    enabled: bool
+    sources: list[str]
+
+
+@lru_cache
+def _get_version() -> str:
+    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    try:
+        with open(pyproject_path, "rb") as f:
+            return tomllib.load(f)["project"]["version"]
+    except Exception:
+        return "0.0.0-dev"
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -40,15 +72,35 @@ def _list_env(name: str, default: list[str]) -> list[str]:
 class Config:
     # --- Provider identity -------------------------------------------------
     # Must be prefixed with "tv.plex.agents.custom.", globally unique, and
-    # should not end with a type suffix like ".movie" (construct_guid()
-    # already appends the type after "://"). See
-    # docs/MediaProvider.md#defining-an-identifier in
+    # should not end with a generic type suffix like ".movie".
+    # See docs/MediaProvider.md#defining-an-identifier in
     # https://github.com/plexinc/tmdb-example-provider.
-    PROVIDER_IDENTIFIER: str = os.environ.get("PROVIDER_IDENTIFIER", "tv.plex.agents.custom.yourname.template")
-    PROVIDER_TITLE: str = os.environ.get("PROVIDER_TITLE", "Metadata Provider Template")
-    PROVIDER_VERSION: str = os.environ.get("PROVIDER_VERSION", "1.0.0")
+    PROVIDER_IDENTIFIER: str = "tv.plex.agents.custom.yourname.template"
+    PROVIDER_TITLE: str = "Metadata Provider Template"
+    PROVIDER_VERSION: str = _get_version()
+    PROVIDER_USER_AGENT = f"MetadataProviderTemplate/{PROVIDER_VERSION:.1}"
 
-    PROVIDER_USER_AGENT = os.environ.get("PROVIDER_USER_AGENT", "MetadataProviderTemplate/1.0")
+    # --- Metadata sources: enable/disable + search order, per category -----
+    # Movies
+    ENABLE_MOVIE_SOURCES: bool = True
+    MOVIE_SOURCES: list[str] = ["example_movie"]
+
+    # TV Shows
+    ENABLE_SHOW_SOURCES: bool = False
+    SHOW_SOURCES: list[str] = ["example_show"]
+    ENABLE_SEASON_SOURCES: bool = False
+    SEASON_SOURCES: list[str] = []
+    ENABLE_EPISODE_SOURCES: bool = False
+    EPISODE_SOURCES: list[str] = []
+
+    # Music
+    # Off by default - see app/helper/constants.py.
+    ENABLE_ARTIST_SOURCES: bool = False
+    ARTIST_SOURCES: list[str] = ["example_artist"]
+    ENABLE_ALBUM_SOURCES: bool = False
+    ALBUM_SOURCES: list[str] = []
+    ENABLE_TRACK_SOURCES: bool = False
+    TRACK_SOURCES: list[str] = []
 
     # Whether to append a source's optional `summary_extra` text to the
     # `summary` field - see app/client/base.SourceMetadata.summary_extra.
@@ -75,21 +127,16 @@ class Config:
     SEARCH_CACHE_TTL_SECONDS: int = int(os.environ.get("SEARCH_CACHE_TTL_SECONDS", "60"))
     SEARCH_CACHE_MAX_SIZE: int = int(os.environ.get("SEARCH_CACHE_MAX_SIZE", "500"))
 
-    # --- Metadata sources: enable/disable + search order, per category -----
-    ENABLE_MOVIE_SOURCES: bool = _bool_env("ENABLE_MOVIE_SOURCES", True)
-    ENABLE_SHOW_SOURCES: bool = _bool_env("ENABLE_SHOW_SOURCES", True)
-    # season/episode are enabled by default but ship no default source - see
-    # app/client/source/season/__init__.py and .../episode/__init__.py.
-    ENABLE_SEASON_SOURCES: bool = _bool_env("ENABLE_SEASON_SOURCES", True)
-    ENABLE_EPISODE_SOURCES: bool = _bool_env("ENABLE_EPISODE_SOURCES", True)
-    # Off by default - see app/helper/constants.py.
-    ENABLE_MUSIC_SOURCES: bool = _bool_env("ENABLE_MUSIC_SOURCES", False)
-
-    MOVIE_SOURCES: list[str] = _list_env("MOVIE_SOURCES", ["example_movie"])
-    SHOW_SOURCES: list[str] = _list_env("SHOW_SOURCES", ["example_show"])
-    SEASON_SOURCES: list[str] = _list_env("SEASON_SOURCES", [])
-    EPISODE_SOURCES: list[str] = _list_env("EPISODE_SOURCES", [])
-    MUSIC_SOURCES: list[str] = _list_env("MUSIC_SOURCES", ["example_music"])
+    # --- Grouped, per-category view of the above (see module docstring) ----
+    SOURCE_CATEGORIES: dict[SourceType, SourceCategorySettings] = {
+        SourceType.MOVIE: SourceCategorySettings(ENABLE_MOVIE_SOURCES, MOVIE_SOURCES),
+        SourceType.SHOW: SourceCategorySettings(ENABLE_SHOW_SOURCES, SHOW_SOURCES),
+        SourceType.SEASON: SourceCategorySettings(ENABLE_SEASON_SOURCES, SEASON_SOURCES),
+        SourceType.EPISODE: SourceCategorySettings(ENABLE_EPISODE_SOURCES, EPISODE_SOURCES),
+        SourceType.ARTIST: SourceCategorySettings(ENABLE_ARTIST_SOURCES, ARTIST_SOURCES),
+        SourceType.ALBUM: SourceCategorySettings(ENABLE_ALBUM_SOURCES, ALBUM_SOURCES),
+        SourceType.TRACK: SourceCategorySettings(ENABLE_TRACK_SOURCES, TRACK_SOURCES),
+    }
 
 
 class TestConfig(Config):
@@ -105,6 +152,15 @@ class TestConfig(Config):
     PROVIDER_VERSION: str = "1.0.0"
     PROVIDER_USER_AGENT: str = "MediaProviderTemplate/1.0"
 
+    ENABLE_MOVIE_SOURCES: bool = True
+    MOVIE_SOURCES: list[str] = ["example_movie"]
+    ENABLE_SHOW_SOURCES: bool = True
+    SHOW_SOURCES: list[str] = ["example_show"]
+    ENABLE_SEASON_SOURCES: bool = True
+    SEASON_SOURCES: list[str] = []
+    ENABLE_EPISODE_SOURCES: bool = True
+    EPISODE_SOURCES: list[str] = []
+
     INCLUDE_EXTRA_IN_SUMMARY: bool = True
 
     EXACT_IGNORE_SCORE: int = 85
@@ -117,13 +173,51 @@ class TestConfig(Config):
     SEARCH_CACHE_TTL_SECONDS: int = 60
     SEARCH_CACHE_MAX_SIZE: int = 500
 
-    ENABLE_MOVIE_SOURCES: bool = True
-    ENABLE_SHOW_SOURCES: bool = True
-    ENABLE_SEASON_SOURCES: bool = True
-    ENABLE_EPISODE_SOURCES: bool = True
-    ENABLE_MUSIC_SOURCES: bool = False
-    MOVIE_SOURCES: list[str] = ["example_movie"]
-    SHOW_SOURCES: list[str] = ["example_show"]
-    SEASON_SOURCES: list[str] = []
-    EPISODE_SOURCES: list[str] = []
-    MUSIC_SOURCES: list[str] = ["example_music"]
+    # Artist/album/track aren't overridden above, so they're pulled from
+    # Config explicitly - bare names in this class body only resolve to
+    # names assigned in *this* body, not inherited ones.
+    SOURCE_CATEGORIES: dict[SourceType, SourceCategorySettings] = {
+        SourceType.MOVIE: SourceCategorySettings(ENABLE_MOVIE_SOURCES, MOVIE_SOURCES),
+        SourceType.SHOW: SourceCategorySettings(ENABLE_SHOW_SOURCES, SHOW_SOURCES),
+        SourceType.SEASON: SourceCategorySettings(ENABLE_SEASON_SOURCES, SEASON_SOURCES),
+        SourceType.EPISODE: SourceCategorySettings(ENABLE_EPISODE_SOURCES, EPISODE_SOURCES),
+        SourceType.ARTIST: SourceCategorySettings(Config.ENABLE_ARTIST_SOURCES, Config.ARTIST_SOURCES),
+        SourceType.ALBUM: SourceCategorySettings(Config.ENABLE_ALBUM_SOURCES, Config.ALBUM_SOURCES),
+        SourceType.TRACK: SourceCategorySettings(Config.ENABLE_TRACK_SOURCES, Config.TRACK_SOURCES),
+    }
+
+
+def validate_source_categories(config_object: type[Config]) -> None:
+    """Checks that ``config_object.SOURCE_CATEGORIES`` has exactly one
+    ``SourceCategorySettings`` entry per category in
+    ``app.helper.constants.SOURCE_TYPES`` - no missing or stray categories.
+    Called from ``create_app()`` so a misconfiguration surfaces at startup
+    rather than on the first request that touches the affected category."""
+    categories = getattr(config_object, "SOURCE_CATEGORIES", None)
+    if not isinstance(categories, dict):
+        raise RuntimeError(
+            f"{config_object.__name__}.SOURCE_CATEGORIES is missing or not a dict - "
+            "see app/helper/config.py."
+        )
+
+    missing = [c for c in SOURCE_TYPES if c not in categories]
+    if missing:
+        raise RuntimeError(
+            f"{config_object.__name__}.SOURCE_CATEGORIES is missing entries for: "
+            f"{', '.join(missing)}. Every category in app.helper.constants.SOURCE_TYPES "
+            "needs a SourceCategorySettings entry."
+        )
+
+    extra = [c for c in categories if c not in SOURCE_TYPES]
+    if extra:
+        raise RuntimeError(
+            f"{config_object.__name__}.SOURCE_CATEGORIES has entries not in "
+            f"app.helper.constants.SOURCE_TYPES: {', '.join(extra)}."
+        )
+
+    not_settings = [c for c, v in categories.items() if not isinstance(v, SourceCategorySettings)]
+    if not_settings:
+        raise RuntimeError(
+            f"{config_object.__name__}.SOURCE_CATEGORIES entries for {', '.join(not_settings)} "
+            "aren't SourceCategorySettings instances."
+        )
