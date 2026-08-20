@@ -1,15 +1,16 @@
 # Plex Metadata Provider Template
 
-A baseline template for building Plex ["Custom Metadata
+A baseline template for building Plex ["Metadata
 Providers"](https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers)
 — movies, TV shows, and (as forward-looking scaffolding) music. Adding a
-new metadata source is a matter of dropping in one file and flipping an
-env var.
+new metadata source is a matter of dropping in one or more 'source' files and updating a
+couple of env vars.
 
-Implements the HTTP contract documented by Plex's own example provider
+Based on  the HTTP contract documented by Plex's own example provider
 (https://github.com/plexinc/tmdb-example-provider) and
 https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers:
 
+Endpoints
 ```
 GET  /                                            -> Provider definition
 GET  /metadata/<ratingKey>                -> Metadata feature
@@ -29,45 +30,32 @@ GET  /health                                        -> Liveness check
 
 ## Quick start
 
+1. Copy this repo
+2. Setup the
+   1. use a virtual env and install the requirements 
+      1. `cp .env.example .env`
+      2. `pip install -r requirements-dev.txt`
+3. Update the pyproject.toml
+4. Update the provider Identity in `app/helpers/config.py`
+   1. `PROVIDER_IDENTIFIER` - a unique identity string
+   2. `PROVIDER_TITLE` - Title displayed in the Plex interface
+   3. `PROVIDER_USER_AGENT` - a user agent that can be used when accessing upstream API/websites
+5. Enable/disable which types the provider is supporting in `app/helpers/config.py`
+   1. For each enabled type add the source names in preferred search order 
+6. Add the sources for each type in `app/client/source/<type>/<source_name.py>`
+   1. see the examples in `app/client/source/movie` and `app/client/source/show` 
+
+## Test the provider       
 ```bash
 cp .env.example .env
-pip install -r requirements-dev.txt
 python run.py
 curl localhost:32900/
 ```
 
+## Additional Info 
+
 `ENABLE_MOVIE_SOURCES` is on by default with a
 working, keyless example source. 
-
-## Configure your provider
-
-Update the configuration defaults below in `app/helper.config`and `.env.example`.
-
-Then copy the `.env.example` to `.env` and restart the app.
-
-### Provider identity
-
-- `PROVIDER_IDENTIFIER`
-  - this is the unique identifier Plex uses for your Provider. see [Defining an identifier section](https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers)
-- `PROVIDER_TITLE` 
-  - This is the name of your provider shown in the Plex interface
-- `PROVIDER_USER_AGENT` 
-  - optionally used for calls to upstram API's and websites 
-
-### Select source categories
-
-Each source category maps 1:1 to a Plex metadata type — `movie`(1),
-`show`(2), `season`(3), `episode`(4) — except `music`, which stays grouped
-(artist/album/track) since none of it is Plex-supported yet (see "Music
-support" below).
-
-Plex recommends one metadata category per provider deployment. This template
-doesn't enforce this, enable only the types that support the category you need.
-eg for the TV Show category enable types 2,3,4 (show, season, episode) together in the app.
-
-### Other default options
-
-These are explained in `app/helper/config.py`
 
 ## App Architecture
 
@@ -82,24 +70,26 @@ app/
       show/example_show.py       # TVMaze API (free, no key)
       season/                     # no example source - see __init__.py
       episode/                     # no example source - see __init__.py
-      music/example_music.py       # MusicBrainz API (free, no key)
+      artist/example_artist.py       # MusicBrainz API (free, no key)
+      album/ 
+      track/
   schema/
     plex.py             # Plex-facing output schema (PlexMetadata)
-    match_request.py     # incoming POST /matches body, typed
+    match_request.py    # incoming POST /matches body, typed
   helper/
-    config.py             # env-driven Config
-    constants.py            # Plex type numbers, source-category routing
-    mapper.py                 # SourceMetadata -> PlexMetadata
+    config.py           # App Config with env-driven options
+    constants.py        # Plex type numbers, source-category routing
+    mapper.py           # SourceMetadata -> PlexMetadata
   service/
-    search.py             # holds an ordered client list, resolves ratingKeys
-    match.py                # scoring, thresholds, category routing
-    metadata.py               # GET /metadata/<ratingKey> (+images/extras)
+    search.py           # holds an ordered client list, resolves ratingKeys
+    match.py            # scoring, thresholds, category routing
+    metadata.py         # GET /metadata/<ratingKey> (+images/extras)
   util/
-    scoring.py    # rapidfuzz-based title relevance scoring
-    text_utils.py  # normalization helpers
-    ttl_cache.py    # thread-safe TTL cache
-  routes.py    # Flask blueprint
-  __init__.py   # application factory
+    scoring.py          # rapidfuzz-based title relevance scoring
+    text_utils.py       # normalization helpers
+    ttl_cache.py        # thread-safe TTL cache
+  routes.py             # Flask blueprint
+  __init__.py           # application factory
 ```
 
 A source translates its upstream shape into `SourceMetadata`
@@ -117,7 +107,7 @@ as-is.
 
 ## Adding a source
 
-1. Pick a category (`movie`, `show`, `season`, `episode`, `music`).
+1. Pick a category (`movie`, `show`, `season`, `episode`, `artist`, `album`, `track`).
 2. Add `app/client/source/<category>/your_source.py` with:
    - a class `YourSource` (snake_case filename → PascalCase), with a
      `name` attribute equal to its own module's filename, implementing
@@ -130,26 +120,23 @@ as-is.
 3. Add `"your_source"` to that category's `<CATEGORY>_SOURCES` env var.
 
 A module that doesn't follow the naming convention, or a name in
-`<CATEGORY>_SOURCES` with no matching module, is logged and skipped rather
-than crashing the app.
+`<CATEGORY>_SOURCES` with no matching module, is logged and skipped.
 
 ## Enabling sources
 
-```env
-ENABLE_MOVIE_SOURCES=true|false
-MOVIE_SOURCES=first_source,second_source,...
+In `app/helper/config.py`
+```
+ENABLE_MOVIE_SOURCES=True|False
+MOVIE_SOURCES=["first_source","second_source"]
 
-ENABLE_SHOW_SOURCES=true|false
-SHOW_SOURCES=example_show
+ENABLE_SHOW_SOURCES=True|False
+SHOW_SOURCES=["example_show"]
 
-ENABLE_SEASON_SOURCES=true|false
-SEASON_SOURCES=
+ENABLE_SEASON_SOURCES=True|False
+SEASON_SOURCES=[]
 
-ENABLE_EPISODE_SOURCES=true|false
-EPISODE_SOURCES=
-
-ENABLE_MUSIC_SOURCES=true|false
-MUSIC_SOURCES=example_music
+ENABLE_EPISODE_SOURCES=True|False
+EPISODE_SOURCES=[]
 ```
 
 `ENABLE_<CATEGORY>_SOURCES=false` disables the whole category regardless of
@@ -159,7 +146,7 @@ both the allow-list and the priority order sources are tried in.
 ## Routing a match request
 
 `POST /matches` receives Plex's numeric `type` field
-(`app/helper/constants.MATCH_REQUEST_TYPE_*`). `MatchService` maps it to a
+(`app/helper/constants.MatchRequestType`). `MatchService` maps it to a
 source category via `match_type_to_source_category()`. An unrecognized
 type, or one mapping to a category with no enabled sources, is a `400`
 (`UnsupportedMatchType`).
@@ -172,7 +159,6 @@ type, or one mapping to a category with no enabled sources, is a `400`
 | show | `example_show` | [TVMaze API](https://www.tvmaze.com/api) | Server-side search; only produces `show` entries. |
 | season | *(none)* | — | Enabled by default, no source — see `app/client/source/season/__init__.py`. |
 | episode | *(none)* | — | Enabled by default, no source — see `app/client/source/episode/__init__.py`. |
-| music | `example_music` | [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API) | See "Music support" below before enabling. |
 
 ## Music support
 
@@ -193,7 +179,7 @@ needed for hierarchical types. To add one:
 1. Add a source module under `season`, `episode`, or a new album/track
    music source.
 2. Fetch the child list from your chosen upstream.
-3. Set `metadata_type=METADATA_TYPE_SEASON` / `EPISODE` / `ALBUM` / `TRACK`
+3. Set `metadata_type=MetadataType.SEASON` / `EPISODE` / `ALBUM` / `TRACK`
    (`app.schema.plex`) on each entry.
 4. Populate `parent_upstream_id`/`parent_title`/`grandparent_*`/`index`/
    `parent_index`, the same way `example_movie.py`/`example_show.py`
@@ -251,6 +237,13 @@ shows and seasons."* So a Show/Season's own `key` field points at its
 parent/grandparent itself. `Mapper._own_key` handles this automatically
 based on `metadata_type` - no source-side changes needed.
 
+### Run locally
+
+```bash
+python run.py
+curl localhost:32900/
+```
+
 ## Configuration reference
 
 See `app/helper/config.py` for the full list and `.env.example` for a
@@ -268,7 +261,7 @@ collide, the first category in that order wins.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+python -m pytest
 ```
 
 Tests run against `TestConfig` (`app/helper/config.py`), which pins every
