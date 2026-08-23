@@ -1,26 +1,25 @@
 """
-HTTP routes implementing the Plex Custom Media Provider contract.
+HTTP routes implementing the Plex Custom Metadata Provider contract.
 
 Endpoints (see docs/API Endpoints.md and docs/MediaProvider.md in
 https://github.com/plexinc/tmdb-example-provider, and
 https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers):
 
-  GET  /                                        -> MediaProvider definition
-  GET  /metadata/<ratingKey>            -> Metadata feature
+  GET  /                                      -> MediaProvider definition
+  GET  /metadata/<ratingKey>                -> Metadata feature
                                                     (?includeChildren=1, ?episodeOrder=)
-  GET  /metadata/<ratingKey>/children    -> Direct children (Seasons of a
+  GET  /metadata/<ratingKey>/children       -> Direct children (Seasons of a
                                                     Show, Episodes of a Season).
                                                     TV Shows/Seasons only. Mandatory
                                                     paging - defaults to 20 items.
-  GET  /metadata/<ratingKey>/grandchildren -> Episodes of a Show, flattening
+  GET  /metadata/<ratingKey>/grandchildren  -> Episodes of a Show, flattening
                                                     past Seasons. TV Shows only.
                                                     Mandatory paging - defaults to
                                                     20 items.
-  GET  /metadata/<ratingKey>/images     -> Image list for an item
-  GET  /metadata/<ratingKey>/extras     -> Extras list for an item
-  POST /matches                -> Match feature
-                                                    (includeChildren, episodeOrder)
-  GET  /health                                  -> Simple liveness check
+  GET  /metadata/<ratingKey>/images         -> Image list for an item
+  GET  /metadata/<ratingKey>/extras         -> Extras list for an item
+  POST /matches                             -> Match feature (includeChildren, episodeOrder)
+  GET  /health                                -> Simple liveness check
 """
 from __future__ import annotations
 
@@ -93,8 +92,8 @@ def _get_match_service(app: Flask) -> MatchService:
             search_by_category=_get_search_by_category(app),
             mapper=_get_mapper(app),
             thresholds=MatchThresholds(
-                exact_ignore_score=cfg["EXACT_IGNORE_SCORE"],
-                manual_ignore_score=cfg["MANUAL_IGNORE_SCORE"]
+                exact_ignore_score=cfg["MINIMUM_EXACT_SCORE"],
+                manual_ignore_score=cfg["MINIMUM_MANUAL_SCORE"]
             ),
             # Same combined (all-category) search used for ratingKey
             # lookups - resolves includeChildren=1 regardless of which
