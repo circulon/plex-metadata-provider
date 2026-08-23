@@ -1,6 +1,6 @@
 # Plex Metadata Provider Template
 
-A baseline template for building Plex ["Metadata
+A baseline template for building Plex ["Custom Metadata
 Providers"](https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers)
 — movies, TV shows, and (as forward-looking scaffolding) music. Adding a
 new metadata source is a matter of dropping in one or more 'source' files and updating a
@@ -10,32 +10,46 @@ Based on  the HTTP contract documented by Plex's own example provider
 (https://github.com/plexinc/tmdb-example-provider) and
 https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers:
 
-Endpoints
+## Features
+
+- Easy adding of multiple types and their sources 
+- Easy toggling of source type availability
+- Auto registration of sources
+- github workflow which uses `pyproject.toml` as the source of truth
+  - only build and push new images on project version change
+  - push readme and short description
+- basic tests included
+- `run.py` for local testing
+- `docker-compose.yml` for building and testing images
+- `README-template.md` as a starting point for your README
+
+## Endpoints
 ```
-GET  /                                            -> Provider definition
-GET  /metadata/<ratingKey>                -> Metadata feature
+GET  /                                      -> Provider definition
+GET  /metadata/<ratingKey>                  -> Metadata feature
                                                       (?includeChildren=1, ?episodeOrder=)
-GET  /metadata/<ratingKey>/children        -> Direct children (Seasons of a Show,
+GET  /metadata/<ratingKey>/children         -> Direct children (Seasons of a Show,
                                                       Episodes of a Season). TV Shows/Seasons
                                                       only. Mandatory paging, defaults to 20.
 GET  /metadata/<ratingKey>/grandchildren    -> Episodes of a Show, flattening past
                                                       Seasons. TV Shows only. Mandatory
                                                       paging, defaults to 20.
-GET  /metadata/<ratingKey>/images          -> Image list for an item
-GET  /metadata/<ratingKey>/extras          -> Extras list for an item
-POST /matches                     -> Match feature
+GET  /metadata/<ratingKey>/images           -> Image list for an item
+GET  /metadata/<ratingKey>/extras           -> Extras list for an item
+POST /matches                               -> Match feature
                                                       (includeChildren, episodeOrder)
-GET  /health                                        -> Liveness check
+GET  /health                                -> Liveness check
 ```
 
 ## Quick start
 
-1. Copy this repo
+1. Copy this repo as a template or fork
 2. Setup the
    1. use a virtual env and install the requirements 
       1. `cp .env.example .env`
       2. `pip install -r requirements-dev.txt`
 3. Update the pyproject.toml
+   1. update the `project` and `tool.docker` sections 
 4. Update the provider Identity in `app/helpers/config.py`
    1. `PROVIDER_IDENTIFIER` - a unique identity string
    2. `PROVIDER_TITLE` - Title displayed in the Plex interface
