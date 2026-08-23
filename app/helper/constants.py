@@ -57,7 +57,8 @@ SOURCE_CATEGORY_MATCH_TYPES: dict[SourceType, MatchRequestType] = {
 }
 
 # The subset of match types Plex's custom-provider API currently accepts -
-# used to build the MediaProvider "Types" array (see app/routes.py).
+# used to build the MediaProvider "Types" array denoting which types
+# this provider supports.
 PLEX_SUPPORTED_MATCH_TYPES: set[MatchRequestType] = {
     MatchRequestType.MOVIE,
     MatchRequestType.SHOW,
@@ -68,7 +69,7 @@ PLEX_SUPPORTED_MATCH_TYPES: set[MatchRequestType] = {
 
 def match_type_to_source_category(match_type: int | None) -> SourceType | None:
     """e.g. ``MatchRequestType.SHOW -> SourceType.SHOW``. Returns None for
-    an unrecognized type - callers treat that as a 400."""
+    an unrecognised type - callers treat that as a 400."""
     for category, type_ in SOURCE_CATEGORY_MATCH_TYPES.items():
         if match_type == type_:
             return category

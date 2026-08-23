@@ -94,7 +94,9 @@ class Config:
     EPISODE_SOURCES: list[str] = []
 
     # Music
-    # Off by default - see app/helper/constants.py.
+    # Currently unused but implemented for future availability
+    # see PLEX_SUPPORTED_MATCH_TYPES in app/helper/constants.py
+    # when usage becomes available
     ENABLE_ARTIST_SOURCES: bool = False
     ARTIST_SOURCES: list[str] = ["example_artist"]
     ENABLE_ALBUM_SOURCES: bool = False
@@ -106,12 +108,12 @@ class Config:
     # `summary` field - see app/client/base.SourceMetadata.summary_extra.
     INCLUDE_EXTRA_IN_SUMMARY: bool = _bool_env("INCLUDE_EXTRA_IN_SUMMARY", True)
 
-    # --- Matching/scoring thresholds (0-100 rapidfuzz composite score) -----
-    # EXACT_IGNORE_SCORE: bar for automatic (non-manual) matching.
-    # MANUAL_IGNORE_SCORE: lower bar for manual/"fix match" requests, which
-    # return a ranked list for a person to choose from.
-    EXACT_IGNORE_SCORE: int = int(os.environ.get("EXACT_IGNORE_SCORE", "85"))
-    MANUAL_IGNORE_SCORE: int = int(os.environ.get("MANUAL_IGNORE_SCORE", "65"))
+    # --- Matching/scoring thresholds (0-100) -----
+    # MINIMUM_EXACT_SCORE: Minimum for automatic (non-manual) matching consideration.
+    # MINIMUM_MANUAL_SCORE: minimum for "match"/"fix match" requests, which
+    # return a ranked list consideration.
+    MINIMUM_EXACT_SCORE: int = int(os.environ.get("MINIMUM_EXACT_SCORE", "85"))
+    MINIMUM_MANUAL_SCORE: int = int(os.environ.get("MINIMUM_MANUAL_SCORE", "65"))
 
     # --- Response paging (manual match requests) ----------------------------
     DEFAULT_PAGE_SIZE: int = int(os.environ.get("DEFAULT_PAGE_SIZE", "20"))
@@ -148,12 +150,15 @@ class TestConfig(Config):
     TESTING = True
 
     PROVIDER_IDENTIFIER: str = "tv.plex.agents.custom.yourname.template"
-    PROVIDER_TITLE: str = "Media Provider Template"
+    PROVIDER_TITLE: str = "Metadata Provider Template"
     PROVIDER_VERSION: str = "1.0.0"
-    PROVIDER_USER_AGENT: str = "MediaProviderTemplate/1.0"
+    PROVIDER_USER_AGENT: str = "MetadataProviderTemplate/1.0"
 
+    # Movies
     ENABLE_MOVIE_SOURCES: bool = True
     MOVIE_SOURCES: list[str] = ["example_movie"]
+
+    # TV Shows
     ENABLE_SHOW_SOURCES: bool = True
     SHOW_SOURCES: list[str] = ["example_show"]
     ENABLE_SEASON_SOURCES: bool = True
@@ -161,10 +166,15 @@ class TestConfig(Config):
     ENABLE_EPISODE_SOURCES: bool = True
     EPISODE_SOURCES: list[str] = []
 
+
+
     INCLUDE_EXTRA_IN_SUMMARY: bool = True
 
-    EXACT_IGNORE_SCORE: int = 85
-    MANUAL_IGNORE_SCORE: int = 65
+    # --- Matching/scoring thresholds (0-100) -----
+    # MINIMUM_EXACT_SCORE: threshold for automatic (non-manual) matching.
+    # MINIMUM_MANUAL_SCORE: lower threshold for manual "fix match" requests
+    MINIMUM_EXACT_SCORE: int = int(os.environ.get("MINIMUM_EXACT_SCORE", "85"))
+    MINIMUM_MANUAL_SCORE: int = int(os.environ.get("MINIMUM_MANUAL_SCORE", "65"))
 
     DEFAULT_PAGE_SIZE: int = 20
 

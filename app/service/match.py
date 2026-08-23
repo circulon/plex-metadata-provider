@@ -7,9 +7,9 @@ rather than ``fuzz.WRatio`` (see that module for why).
 manual vs. non-manual
 -----------------------
 Without ``manual: 1``, only the single best result is returned - and only
-if unambiguous (no more than one candidate clears EXACT_IGNORE_SCORE).
+if unambiguous (no more than one candidate clears MINIMUM_EXACT_SCORE).
 With ``manual: 1``, the full ranked, paged set of candidates above
-MANUAL_IGNORE_SCORE is returned, for a person to choose from.
+MINIMUM_MANUAL_SCORE is returned, for a person to choose from.
 
 Routing to a source category
 ------------------------------
@@ -53,8 +53,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MatchThresholds:
-    exact_ignore_score: int = Config.EXACT_IGNORE_SCORE
-    manual_ignore_score: int = Config.MANUAL_IGNORE_SCORE
+    exact_ignore_score: int = Config.MINIMUM_EXACT_SCORE
+    manual_ignore_score: int = Config.MINIMUM_MANUAL_SCORE
 
 
 class MatchService:
