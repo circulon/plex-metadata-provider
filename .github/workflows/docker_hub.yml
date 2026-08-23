@@ -1,0 +1,106 @@
+name: Build and Publish Docker Image
+
+on:
+#  push:
+#    branches: [ "main" ]
+  workflow_dispatch: {}
+
+jobs:
+  project-info:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      short_description: ${{ steps.get_short_description.outputs.value }}
+      image_name: ${{ steps.get_image_name.outputs.value }}
+      should_run: ${{ steps.check_tag.outputs.should_run }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Extract version from pyproject.toml
+        id: get_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: pyproject.toml
+          field: project.version
+
+      - name: Extract Docker short description from pyproject.toml
+        id: get_short_description
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: pyproject.toml
+          field: tool.docker.short_description
+
+      - name: Extract Docker image name from pyproject.toml
+        id: get_image_name
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: pyproject.toml
+          field: tool.docker.image
+
+      - name: Check if version already exists on Docker Hub
+        id: check_tag
+        run: |
+          VERSION="${{ steps.get_version.outputs.value }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://hub.docker.com/v2/repositories/${{ steps.get_image_name.outputs.value }}/tags/v${VERSION}/")
+          if [ "$STATUS" = "200" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Version v${VERSION} already exists on Docker Hub - skipping build"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Version v${VERSION} not found on Docker Hub (status $STATUS) - proceeding with build"
+          fi
+
+  build-and-push:
+    needs: project-info
+    if: needs.project-info.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags)
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ needs.project-info.outputs.image_name }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=v${{ needs.project-info.outputs.version }}
+            type=sha,prefix=,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  sync-readme:
+    needs: [project-info, build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Push README to Docker Hub
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ needs.project-info.outputs.image_name }}
+          readme-filepath: ./README.md
+          short-description: ${{ needs.project-info.outputs.short_description }}
